@@ -2,7 +2,7 @@ use std::env;
 use std::error::Error;
 use std::fmt::Debug;
 use std::io::{Read, Write};
-use std::net::TcpStream;
+use std::net::{TcpStream};
 use std::str::FromStr;
 use std::time::Duration;
 use http::{Method, Version};
@@ -10,6 +10,15 @@ use http::{Method, Version};
 use http_client::request::{Command, Entry, Request, RequestLine};
 use http_client::{http_header, request};
 use url::{Host, Url};
+
+struct Cli {
+    version: Option<Version>,
+    url: Option<Url>,
+    /// todo:去重
+    headers: Vec<Entry>,
+    data: Option<String>,
+    method: Option<Method>,
+}
 
 fn main() -> Result<(), Box<dyn Error>> {
     let args: Vec<String> = env::args().collect();
@@ -31,6 +40,10 @@ fn main() -> Result<(), Box<dyn Error>> {
             "-d" => {
                 i += 1;
                 Command::Data(args[i].to_string())
+            },
+            "-b" => {
+                i += 1;
+                Command::Cookie(args[i].to_string())
             },
             url => Command::Url(url.to_string()),
         };
@@ -54,22 +67,22 @@ fn main() -> Result<(), Box<dyn Error>> {
         value: "keep-alive".to_string(),
     };
 
-    let mut version = None;
-    let mut url: Option<Url>= None;
-    /// todo:去重
-    let mut headers = vec![accept, accept_encoding, connection];
-    let mut data= None;
-    let mut method= None;
+    let mut cli = Cli {
+        version: None,
+        url: None,
+        headers: vec![accept, accept_encoding, connection],
+        data: None,
+        method: None,
+    };
 
     for command in commands {
         match command {
             Command::Version(ver) => {
-                version = Some(ver);
+                cli.version = Some(ver);
             },
             Command::Url(url_str) => {
-                println!("url_str: {}", url_str);
                 let url_parse: Url = Url::parse(url_str.as_str()).expect("url is illegal");
-                url = Some(url_parse);
+                cli.url = Some(url_parse);
             },
             Command::Header(header_line) => {
                 match header_line.find(":") {
@@ -80,15 +93,21 @@ fn main() -> Result<(), Box<dyn Error>> {
                             key: key.trim().to_string(),
                             value: value.trim().to_string(),
                         };
-                        headers.push(header);
+                        cli.headers.push(header);
                     }
                 }
 
             },
-            Command::Data(data_str) => data = Some(data_str),
+            Command::Data(data_str) => cli.data = Some(data_str),
             Command::Form { .. } => {}
-            Command::Method(method_str) => method = Some(Method::from_str(method_str.as_str()).expect("method is illegal")),
-            Command::Cookie(cookie) => {}
+            Command::Method(method_str) => cli.method = Some(Method::from_str(method_str.as_str()).expect("method is illegal")),
+            Command::Cookie(cookie) => {
+                let header = Entry {
+                    key: http_header::COOKIE.to_string(),
+                    value: cookie,
+                };
+                cli.headers.push(header);
+            }
             Command::CookieJar { file_name } => {}
             Command::JunkSessionCookies => {}
             Command::OutPutHerder => {}
@@ -97,15 +116,14 @@ fn main() -> Result<(), Box<dyn Error>> {
         }
     }
 
-    let url = url.expect("url is not found");
-    println!("{:?}", url);
+    let url = cli.url.expect("url is not found");
+    let socket_addrs = url.socket_addrs(|| None).expect("url can not cast to socket_addrs");
     let path = url.path().to_string();
-    // let scheme = url.scheme().to_string();
     let host = match url.host() {
         None => panic!("host is missing"),
         Some(host) => {
             let port = url.port();
-            let host = match (host, port) {
+            match (host, port) {
                 (Host::Domain(domain), Some(port)) => {
                     format!("{}:{}", domain.to_string(),port.to_string())
                 }
@@ -115,15 +133,15 @@ fn main() -> Result<(), Box<dyn Error>> {
                 },
                 (Host::Ipv4(addr), None) => addr.to_string(),
                 (Host::Ipv6(_),_) => panic!("Ipv6 is not support"),
-            };
-            headers.push(Entry {
-                key: http_header::HOST.to_string(),
-                value: host,
-            });
+            }
         }
     };
+    cli.headers.push(Entry {
+        key: http_header::HOST.to_string(),
+        value: host.clone(),
+    });
 
-    let version = match version {
+    let version = match cli.version {
         None => Default::default(),
         Some(version) => version
     };
@@ -136,22 +154,22 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let request = Request {
         request_line: RequestLine {
-            method: match method {
+            method: match cli.method {
                 None => Default::default(),
                 Some(method) => method
             },
             path,
             protocol,
         },
-        request_header: headers,
-        request_data: data,
+        request_header: cli.headers,
+        request_data: cli.data,
     };
-    println!("{:?}", request);
+    // println!("{:?}", request);
 
     let http_message = request.to_message();
-    println!("{}", http_message);
+    // println!("{}", http_message);
 
-    let mut stream = TcpStream::connect("127.0.0.1:8888")
+    let mut stream = TcpStream::connect(&socket_addrs[..])
         .expect("Couldn't connect to the server...");
 
     stream.set_write_timeout(Some(Duration::new(10, 0)))

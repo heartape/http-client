@@ -8,15 +8,13 @@ fn run() {
     let streams = listener.incoming();
 
     for stream in streams {
-        let mut buffer = [0; 1024];
+        let mut request = String::new();
         let mut stream = stream
             .expect("Connection client failed");
         stream
-            .read(&mut buffer)
+            .read_to_string(&mut request)
             .expect("read client failed");
 
-        let request = String::from_utf8_lossy(&buffer);
-        let request = request.trim_matches('\u{0}');
         println!("request: {:?}", request);
 
         stream.write("hello c".as_bytes())

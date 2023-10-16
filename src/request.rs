@@ -18,7 +18,7 @@ impl Request {
         for entry in &self.request_header {
             res.push_str(entry.to_message().as_str());
         }
-        res.push_str("\n");
+        res.push_str("\r\n");
         if let Some(data) = &self.request_data {
             res.push_str(data);
         }
@@ -42,7 +42,7 @@ impl RequestLine {
         res.push_str(self.path.as_str());
         res.push_str(" ");
         res.push_str(self.protocol.as_str());
-        res.push_str("\n");
+        res.push_str("\r\n");
         res
     }
 }
@@ -98,7 +98,7 @@ impl Entry {
         res.push_str(self.key.as_str());
         res.push_str(": ");
         res.push_str(self.value.as_str());
-        res.push_str("\n");
+        res.push_str("\r\n");
         res
     }
 }
