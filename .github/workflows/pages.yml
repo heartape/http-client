@@ -11,7 +11,7 @@ jobs:
       CARGO_TERM_COLOR: always
     steps:
       - name: Check Tag
-        if: "contains(github.ref, '-*')"
+        if: "!contains(github.ref, '-')"
         run: exit 0
       - name: Checkout
         uses: actions/checkout@v3
