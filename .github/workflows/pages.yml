@@ -4,19 +4,15 @@ on:
       - 'v*.*.*'
 
 jobs:
-  check-tag:
-    name: Check Tag
-    runs-on: ubuntu-latest
-    steps:
-      - name: Check
-        if: "contains(github.ref, '-*')"
-        run: exit 0
   upload-packages:
     name: Upload Packages
     runs-on: ubuntu-latest
     env:
       CARGO_TERM_COLOR: always
     steps:
+      - name: Check Tag
+        if: "contains(github.ref, '-*')"
+        run: exit 0
       - name: Checkout
         uses: actions/checkout@v3
       - name: Release
