@@ -1,11 +1,24 @@
 use std::fmt::Debug;
-use http::{Method, Version};
+use std::io::{Read, Write};
+use std::net::{SocketAddr, TcpStream};
+use std::time::Duration;
+use http::{Method};
 
 pub static HTTP_10: &str = "HTTP/1.0";
 pub static HTTP_11: &str = "HTTP/1.1";
 
+/// todo
+/// --https
+/// --tlsv1
+/// --tlsv1.0
+/// --tlsv1.1
+/// --tlsv1.2
+/// --sslv2
+/// --sslv3
+
 #[derive(Debug)]
 pub struct Request {
+    pub socket_addrs: Vec<SocketAddr>,
     pub request_line: RequestLine,
     pub request_header: Vec<Entry>,
     pub request_data: Option<String>,
@@ -24,6 +37,30 @@ impl Request {
         }
         res
     }
+
+    pub fn do_http(&self) {
+        let http_message = self.to_message();
+        println!("request: {:?}", http_message);
+
+        let mut stream = TcpStream::connect(&self.socket_addrs[..])
+            .expect("Couldn't connect to the server...");
+
+        stream.set_write_timeout(Some(Duration::new(10, 0)))
+            .expect("set_write_timeout call failed");
+
+        stream.set_read_timeout(Some(Duration::new(10, 0)))
+            .expect("set_read_timeout call failed");
+
+        stream.write(&http_message.as_bytes())
+            .expect("write failed");
+
+        let mut buffer = [0; 1024 * 1024];
+        stream.read(&mut buffer)
+            .expect("read failed");
+        let response = String::from_utf8_lossy(&buffer);
+        let response = response.trim_matches('\u{0}');
+        println!("response: {:?}", response);
+    }
 }
 
 #[derive(Debug)]
@@ -36,54 +73,8 @@ pub struct RequestLine {
 impl RequestLine {
 
     pub fn to_message(&self) -> String {
-        let mut res = String::new();
-        res.push_str(self.method.as_str());
-        res.push_str(" ");
-        res.push_str(self.path.as_str());
-        res.push_str(" ");
-        res.push_str(self.protocol.as_str());
-        res.push_str("\r\n");
-        res
+        format!("{} {} {}\r\n", self.method, self.path, self.protocol)
     }
-}
-
-/// Command
-#[derive(Debug)]
-pub enum Command {
-    Url(String),
-    /// -v
-    Version(Version),
-    /// -H
-    Header(String),
-    /// -d
-    Data(String),
-    /// -F
-    Form {
-        /// name=alan
-        param: Vec<Entry>,
-        /// name=@file, binary
-        upload: Vec<Entry>,
-        /// name=<file, text
-        read: Vec<Entry>,
-    },
-    /// -X
-    Method(String),
-    /// -b
-    Cookie(String),
-    /// -c
-    CookieJar {
-        file_name: String,
-    },
-    /// -j
-    JunkSessionCookies,
-    /// -l
-    OutPutHerder,
-    /// -i
-    OutPutHerderAndData,
-    /// -D
-    DumpHeader {
-        file_name: String,
-    },
 }
 
 #[derive(Debug)]
@@ -94,20 +85,6 @@ pub struct Entry {
 
 impl Entry {
     pub fn to_message(&self) -> String {
-        let mut res = String::new();
-        res.push_str(self.key.as_str());
-        res.push_str(": ");
-        res.push_str(self.value.as_str());
-        res.push_str("\r\n");
-        res
+        format!("{}: {}\r\n", self.key, self.value)
     }
 }
-
-// --tlsv1
-// --tlsv1.0
-// --tlsv1.1
-// --tlsv1.2
-// --sslv2
-// --sslv3
-// --http1.0
-// --http1.1
