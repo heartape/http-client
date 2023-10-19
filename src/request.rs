@@ -40,7 +40,7 @@ impl Request {
 
     pub fn do_http(&self) {
         let http_message = self.to_message();
-        println!("request: {:?}", http_message);
+        // println!("request: {:?}", http_message);
 
         let mut stream = TcpStream::connect(&self.socket_addrs[..])
             .expect("Couldn't connect to the server...");
@@ -59,7 +59,8 @@ impl Request {
             .expect("read failed");
         let response = String::from_utf8_lossy(&buffer);
         let response = response.trim_matches('\u{0}');
-        println!("response: {:?}", response);
+        let response = format!("{}", response);
+        println!("{}", response);
     }
 }
 
